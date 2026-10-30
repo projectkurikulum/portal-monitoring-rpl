@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portal Monitoring RPL V8</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#1e293b;font:15px system-ui,Arial}
+header{background:#16324f;color:#fff;padding:15px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+main{max-width:1100px;margin:26px auto;padding:0 16px}.card{background:white;border:1px solid #dce4ef;border-radius:14px;padding:20px;margin:14px 0}
+.login{max-width:440px;margin:10vh auto}label{display:block;font-weight:650;margin:12px 0 5px}input{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14px;cursor:pointer;font:inherit}button.secondary{background:#e8eef7;color:#16324f}button:disabled{opacity:.6;cursor:wait}.small{padding:7px 10px;font-size:12px}.nowrap{white-space:nowrap}.editgrade{width:85px}.editsemester{width:120px}.editstatus{width:155px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.toolbar>div{flex:1;min-width:220px}.tag{font-size:12px;color:#64748b}select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;background:white;font:inherit}
+.muted{color:#64748b;font-size:13px}.error{color:#b42318}.success{color:#067647}.hidden{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.stat{background:#fff;border:1px solid #dce4ef;border-radius:12px;padding:16px}.stat b{display:block;font-size:25px;margin-top:5px}
+.scroll{overflow:auto}table{border-collapse:collapse;width:100%;min-width:650px}th,td{padding:10px;text-align:left;border-bottom:1px solid #e7edf4;font-size:13px}
+.pill{display:inline-block;background:#e8eef7;color:#16324f;padding:4px 8px;border-radius:20px;font-size:12px}
+.notice{background:#fff5d9;color:#765000;padding:12px;border-radius:8px;font-size:13px}
+</style>
+</head>
+<body>
+<div id="login" class="card login">
+<h2>Portal Monitoring RPL</h2><p class="muted">Masuk menggunakan email dan password akun yang terdaftar di Supabase.</p>
+<form id="loginForm">
+<label>Email</label><input id="email" type="email" autocomplete="username" required placeholder="Email akun Admin">
+<label>Password</label><input id="password" type="password" autocomplete="current-password" required placeholder="Password">
+<p id="loginMsg" class="error" role="alert"></p><button id="loginBtn" style="width:100%">Masuk</button>
+</form>
+</div>
+<div id="app" class="hidden">
+<header><strong>Portal Monitoring RPL</strong><span id="identity"></span><button class="secondary" id="logoutBtn">Keluar</button></header>
+<main>
+<h2 id="welcome">Dashboard</h2>
+<div id="message" class="card hidden"></div>
+<section id="adminPanel" class="hidden">
+<div class="grid">
+<div class="stat">Akun pengguna<b id="profileCount">—</b></div>
+<div class="stat">Mata kuliah kurikulum<b id="courseCount">—</b></div>
+<div class="stat">Hasil rekognisi<b id="resultCount">—</b></div>
+</div>
+
+<div class="card">
+  <h3>Tambah Mahasiswa</h3>
+  <p class="muted">Buat akun mahasiswa melalui fungsi server yang memeriksa hak akses Admin. Uji dahulu dengan data fiktif.</p>
+  <form id="createStudentForm">
+    <div class="grid">
+      <div><label for="studentName">Nama lengkap</label><input id="studentName" required maxlength="150" placeholder="Contoh: Mahasiswa Uji"></div>
+      <div><label for="studentNim">NIM</label><input id="studentNim" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]{3,40}" placeholder="Contoh: UJI0001"></div>
+      <div><label for="studentEmail">Email</label><input id="studentEmail" type="email" required autocomplete="off" placeholder="Email uji yang kamu miliki"></div>
+      <div><label for="studentCohort">Angkatan</label>
+        <select id="studentCohort" required>
+          <option value="RPL34 20251">RPL34 20251 — Kurikulum 2023</option>
+          <option value="RPL34 20252">RPL34 20252 — Kurikulum 2023</option>
+          <option value="RPL35 20261">RPL35 20261 — Kurikulum 2026</option>
+        </select>
+      </div>
+      <div><label for="studentPassword">Password awal (minimal 12 karakter)</label><input id="studentPassword" type="password" minlength="12" required autocomplete="new-password" placeholder="Buat password unik"></div>
+    </div>
+    <p class="muted">Akun baru langsung aktif sesuai pengaturan Edge Function. Gunakan password awal unik dan sampaikan secara privat kepada mahasiswa.</p>
+    <button id="createStudentBtn" type="submit">Tambah Mahasiswa</button>
+    <p id="createStudentMsg" role="status" aria-live="polite"></p>
+  </form>
+</div>
+<div class="card"><h3>Input Hasil Rekognisi dan Nilai</h3>
+<p class="muted">Pilih mahasiswa, lalu atur status, nilai angka, dan semester untuk setiap mata kuliah. Klik Simpan pada baris yang diubah.</p>
+<div class="toolbar"><div><label for="chooseStudent">Pilih mahasiswa</label><select id="chooseStudent"><option value="">— Pilih mahasiswa —</option></select></div><div><span class="tag" id="chosenInfo"></span></div></div>
+<p id="editMsg" role="status" aria-live="polite"></p>
+<div class="scroll"><table><thead><tr><th>Semester</th><th>Kode</th><th>Mata kuliah</th><th>SKS</th><th>Status</th><th>Nilai (0–100)</th><th>Semester tercatat</th><th>Aksi</th></tr></thead><tbody id="editCoursesBody"><tr><td colspan="8">Pilih mahasiswa untuk mengisi hasil.</td></tr></tbody></table></div>
+</div>
+<div class="card"><h3>Daftar mahasiswa</h3><p class="muted">Data profil yang dapat dibaca oleh akun Admin sesuai aturan keamanan database.</p><div class="scroll"><table><thead><tr><th>Nama</th><th>NIM</th><th>Angkatan</th><th>Peran</th></tr></thead><tbody id="studentsBody"></tbody></table></div></div>
+<div class="card"><h3>Data kurikulum</h3><div class="scroll"><table><thead><tr><th>Kurikulum</th><th>Semester</th><th>Kode</th><th>Mata kuliah</th><th>SKS</th></tr></thead><tbody id="curriculumBody"></tbody></table></div></div>
+<p class="notice">Gunakan data uji terlebih dahulu. Pengamanan RLS dan pengujian akses antar-mahasiswa wajib diselesaikan sebelum data mahasiswa asli dimasukkan.</p>
+</section>
+<section id="studentPanel" class="hidden">
+<div class="grid"><div class="stat">Total mata kuliah<b id="myTotal">—</b></div><div class="stat">Direkognisi / ditempuh<b id="myDone">—</b></div><div class="stat">Belum diakui<b id="myPending">—</b></div></div>
+<div class="card"><div class="toolbar"><div><h3>Hasil studi saya</h3><p class="muted">Nilai direkognisi dan sudah ditempuh ditampilkan sebagai angka.</p></div><button id="printTranscript" type="button">Cetak / Simpan PDF Transkrip</button></div><div class="scroll"><table><thead><tr><th>Semester</th><th>Kode</th><th>Mata kuliah</th><th>SKS</th><th>Status</th><th>Nilai</th></tr></thead><tbody id="myCoursesBody"></tbody></table></div></div>
+</section>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://pvbqgqvlapnpfutvhjgy.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_e5xZjAcZ2JG70UBQ7PnPPA_DhNPEsFg';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const $ = id => document.getElementById(id);
+let allCourses=[], allProfiles=[], selectedStudent=null, studentRows=[], activeProfile=null;
+const cohortYear = cohort => cohort==='RPL35 20261'?2026:2023;
+const isDone = status => ['Direkognisi','Sudah ditempuh'].includes(status);
+const statusOptions=['Belum ditempuh','Direkognisi','Sudah ditempuh'];
+function displayError(e){return e?.message||'Kesalahan tidak diketahui';}
+
+function showMessage(msg,kind='error'){$('message').className='card '+kind;$('message').textContent=msg;}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+$('loginForm').addEventListener('submit',async e=>{
+ e.preventDefault(); $('loginBtn').disabled=true; $('loginMsg').textContent='';
+ const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});
+ $('loginBtn').disabled=false;
+ if(error){$('loginMsg').textContent='Login gagal: '+error.message;return;}
+ await loadDashboard(data.user);
+});
+$('logoutBtn').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
+async function loadDashboard(user){
+ $('login').classList.add('hidden');$('app').classList.remove('hidden');
+ const {data:profile,error:pe}=await db.from('profiles').select('id,full_name,nim,cohort,role').eq('id',user.id).maybeSingle();
+ if(pe){showMessage('Gagal membaca profil: '+pe.message);return;}
+ if(!profile){showMessage('Akun berhasil login, tetapi profil belum ditemukan di tabel profiles. Hubungi Admin.');return;}
+ $('identity').textContent=profile.full_name||user.email;
+ $('welcome').textContent='Selamat datang, '+(profile.full_name||'Pengguna')+'!';
+ activeProfile=profile;
+ if(profile.role==='admin'){await loadAdmin();}
+ else if(profile.role==='student'){await loadStudent(profile);}
+ else showMessage('Peran akun tidak dikenali. Hubungi Admin.');
+}
+$('createStudentForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = $('createStudentBtn');
+  const output = $('createStudentMsg');
+  output.className = '';
+  output.textContent = '';
+  button.disabled = true;
+  try {
+    const {data: sessionData, error: sessionError} = await db.auth.getSession();
+    if (sessionError || !sessionData.session) throw new Error('Sesi habis. Silakan login ulang.');
+    const payload = {
+      name: $('studentName').value.trim(),
+      nim: $('studentNim').value.trim(),
+      email: $('studentEmail').value.trim(),
+      cohort: $('studentCohort').value,
+      password: $('studentPassword').value
+    };
+    const {data, error} = await db.functions.invoke('create-student', {body: payload});
+    if (error) {
+      let message = error.message || 'Gagal menghubungi server.';
+      if (error.context && typeof error.context.json === 'function') {
+        try {
+          const details = await error.context.json();
+          if (details?.error) message = details.error;
+        } catch (_) {}
+      }
+      throw new Error(message);
+    }
+    if (!data?.success) throw new Error(data?.error || 'Server belum mengonfirmasi pembuatan akun.');
+    output.className = 'success';
+    output.textContent = 'Akun berhasil dibuat untuk ' + data.student.name + ' (' + data.student.nim + ').';
+    $('createStudentForm').reset();
+    $('studentPassword').value = '';
+    await loadAdmin();
+  } catch (error) {
+    output.className = 'error';
+    output.textContent = 'Gagal: ' + (error?.message || 'Kesalahan tidak diketahui');
+  } finally {
+    $('studentPassword').value = '';
+    button.disabled = false;
+  }
+});
+async function loadAdmin(){
+ $('adminPanel').classList.remove('hidden');
+ const [p,c,s]=await Promise.all([
+  db.from('profiles').select('id,full_name,nim,cohort,role').order('full_name'),
+  db.from('curriculum_courses').select('id,curriculum_year,semester,course_code,course_name,credits,sort_order').order('curriculum_year').order('sort_order'),
+  db.from('student_courses').select('id')
+ ]);
+ if(p.error||c.error||s.error){showMessage('Dashboard belum dapat membaca semua tabel. Periksa RLS/policy. '+[p.error,c.error,s.error].filter(Boolean).map(x=>x.message).join(' | '));return;}
+ $('profileCount').textContent=p.data.length;
+ $('courseCount').textContent=c.data.length;
+ $('resultCount').textContent=s.data.length;
+ allProfiles=p.data;allCourses=c.data;
+ const oldChoice=$('chooseStudent').value;
+ $('chooseStudent').innerHTML='<option value="">— Pilih mahasiswa —</option>'+p.data.filter(x=>x.role==='student').map(x=>`<option value="${esc(x.id)}">${esc(x.full_name)} — ${esc(x.nim)} (${esc(x.cohort)})</option>`).join('');
+ if(p.data.some(x=>x.id===oldChoice && x.role==='student'))$('chooseStudent').value=oldChoice;
+ $('studentsBody').innerHTML=p.data.map(x=>`<tr><td>${esc(x.full_name)}</td><td>${esc(x.nim||'—')}</td><td>${esc(x.cohort||'—')}</td><td><span class="pill">${esc(x.role)}</span></td></tr>`).join('')||'<tr><td colspan="4">Belum ada pengguna.</td></tr>';
+ $('curriculumBody').innerHTML=c.data.map(x=>`<tr><td>${esc(x.curriculum_year)}</td><td>${esc(x.semester)}</td><td>${esc(x.course_code)}</td><td>${esc(x.course_name)}</td><td>${esc(x.credits)}</td></tr>`).join('')||'<tr><td colspan="5">Belum ada mata kuliah.</td></tr>';
+}
+$('chooseStudent').addEventListener('change',loadEditor);
+async function loadEditor(){
+ const id=$('chooseStudent').value;
+ selectedStudent=allProfiles.find(x=>x.id===id && x.role==='student')||null;
+ $('editMsg').textContent='';
+ if(!selectedStudent){$('chosenInfo').textContent='';$('editCoursesBody').innerHTML='<tr><td colspan="8">Pilih mahasiswa terlebih dahulu.</td></tr>';return;}
+ $('chosenInfo').textContent='Kurikulum '+cohortYear(selectedStudent.cohort)+' · '+selectedStudent.cohort;
+ const {data,error}=await db.from('student_courses').select('id,student_id,course_id,status,grade,semester_override').eq('student_id',id);
+ if(error){$('editMsg').className='error';$('editMsg').textContent='Gagal membaca hasil: '+error.message;return;}
+ const existing=new Map((data||[]).map(x=>[x.course_id,x]));
+ const courses=allCourses.filter(x=>x.curriculum_year===cohortYear(selectedStudent.cohort));
+ $('editCoursesBody').innerHTML=courses.map(c=>{
+   const x=existing.get(c.id)||{};
+   const status=isDone(x.status)?x.status:'Belum ditempuh';
+   return `<tr data-course="${esc(c.id)}"><td>${esc(c.semester)}</td><td>${esc(c.course_code)}</td><td>${esc(c.course_name)}</td><td>${esc(c.credits)}</td><td><select class="editstatus" aria-label="Status ${esc(c.course_name)}">${statusOptions.map(st=>`<option ${st===status?'selected':''}>${esc(st)}</option>`).join('')}</select></td><td><input class="editgrade" type="number" min="0" max="100" step="0.01" value="${esc(x.grade??'')}" aria-label="Nilai ${esc(c.course_name)}"></td><td><input class="editsemester" type="text" maxlength="40" value="${esc(x.semester_override??'')}" placeholder="Opsional" aria-label="Semester ${esc(c.course_name)}"></td><td><button class="small saveRow" type="button">Simpan</button></td></tr>`;
+ }).join('')||'<tr><td colspan="8">Kurikulum angkatan ini belum tersedia.</td></tr>';
+}
+$('editCoursesBody').addEventListener('click',async e=>{
+ const btn=e.target.closest('.saveRow');if(!btn||!selectedStudent)return;
+ const tr=btn.closest('tr');const course_id=tr.dataset.course;
+ const status=tr.querySelector('.editstatus').value;
+ const gradeInput=tr.querySelector('.editgrade').value.trim();
+ const semester_override=tr.querySelector('.editsemester').value.trim()||null;
+ const grade=gradeInput===''?null:Number(gradeInput);
+ if(!statusOptions.includes(status)){alert('Status tidak valid.');return;}
+ if(status==='Belum ditempuh' && grade!==null){alert('Kosongkan nilai untuk mata kuliah yang belum ditempuh.');return;}
+ if(isDone(status) && (grade===null||!Number.isFinite(grade)||grade<0||grade>100)){alert('Isi nilai angka 0–100 untuk mata kuliah yang sudah direkognisi atau ditempuh.');return;}
+ if(grade!==null && (!Number.isFinite(grade)||grade<0||grade>100)){alert('Nilai harus antara 0–100.');return;}
+ btn.disabled=true;$('editMsg').textContent='Menyimpan...';$('editMsg').className='muted';
+ try{
+   const payload={student_id:selectedStudent.id,course_id,status,grade:status==='Belum ditempuh'?null:grade,semester_override};
+   const {error}=await db.from('student_courses').upsert(payload,{onConflict:'student_id,course_id'});
+   if(error)throw error;
+   $('editMsg').className='success';$('editMsg').textContent='Berhasil disimpan: '+tr.children[2].textContent;
+   const {count}=await db.from('student_courses').select('id',{count:'exact',head:true});if(count!==null)$('resultCount').textContent=count;
+ }catch(error){$('editMsg').className='error';$('editMsg').textContent='Gagal menyimpan: '+displayError(error)+' — periksa SQL pengaturan V8.';}
+ finally{btn.disabled=false;}
+});
+async function loadStudent(profile){
+ $('studentPanel').classList.remove('hidden');
+ const year=cohortYear(profile.cohort);
+ const [coursesResult,resultsResult]=await Promise.all([
+   db.from('curriculum_courses').select('id,curriculum_year,semester,course_code,course_name,credits,sort_order').eq('curriculum_year',year).order('sort_order'),
+   db.from('student_courses').select('course_id,status,semester_override,grade').eq('student_id',profile.id)
+ ]);
+ if(coursesResult.error||resultsResult.error){showMessage('Gagal membaca data studi: '+[coursesResult.error,resultsResult.error].filter(Boolean).map(x=>x.message).join(' | '));return;}
+ const map=new Map((resultsResult.data||[]).map(x=>[x.course_id,x]));
+ studentRows=(coursesResult.data||[]).map(c=>({...c,...(map.get(c.id)||{}),status:isDone(map.get(c.id)?.status)?map.get(c.id).status:'Belum ditempuh'}));
+ const done=studentRows.filter(x=>isDone(x.status)).length;
+ $('myTotal').textContent=studentRows.length;$('myDone').textContent=done;$('myPending').textContent=studentRows.length-done;
+ $('myCoursesBody').innerHTML=studentRows.map(x=>`<tr><td>${esc(x.semester_override||x.semester||'—')}</td><td>${esc(x.course_code)}</td><td>${esc(x.course_name)}</td><td>${esc(x.credits)}</td><td>${esc(x.status)}</td><td>${esc(isDone(x.status)?x.grade??'—':'—')}</td></tr>`).join('')||'<tr><td colspan="6">Kurikulum belum tersedia.</td></tr>';
+}
+$('printTranscript').addEventListener('click',()=>{
+ if(!activeProfile||activeProfile.role!=='student')return;
+ const completed=studentRows.filter(x=>isDone(x.status));
+ const win=window.open('','_blank');if(!win){alert('Izinkan pop-up browser untuk mencetak transkrip.');return;}
+ const html=`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Transkrip Sementara</title><style>body{font:13px Arial;margin:35px;color:#111}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #888;padding:7px;text-align:left}th{background:#eee}.note{margin-top:20px;color:#555}@media print{button{display:none}}</style></head><body><h2>TRANSKRIP SEMENTARA — RPL</h2><p><b>Nama:</b> ${esc(activeProfile.full_name)}<br><b>NIM:</b> ${esc(activeProfile.nim)}<br><b>Angkatan:</b> ${esc(activeProfile.cohort)}<br><b>Kurikulum:</b> ${cohortYear(activeProfile.cohort)}</p><table><thead><tr><th>No</th><th>Semester</th><th>Kode</th><th>Mata Kuliah</th><th>SKS</th><th>Status</th><th>Nilai</th></tr></thead><tbody>${completed.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.semester_override||x.semester)}</td><td>${esc(x.course_code)}</td><td>${esc(x.course_name)}</td><td>${esc(x.credits)}</td><td>${esc(x.status)}</td><td>${esc(x.grade??'—')}</td></tr>`).join('')}</tbody></table><p class="note">Dokumen sementara untuk pemantauan studi. Bukan transkrip akademik resmi dan belum disahkan perguruan tinggi.</p><button onclick="window.print()">Cetak / Simpan PDF</button></body></html>`;
+ win.document.open();win.document.write(html);win.document.close();
+});
+(async()=>{const {data}=await db.auth.getSession();if(data.session)await loadDashboard(data.session.user);})();
+</script>
+</body></html>
