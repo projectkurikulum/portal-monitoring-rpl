@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Portal Monitoring RPL V9</title>
+<title>Portal Monitoring RPL V9.1</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#1e293b;font:15px system-ui,Arial}
 header{background:#16324f;color:#fff;padding:15px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
@@ -61,9 +61,9 @@ button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14
 </div>
 <div class="card">
 <h3>Reset Password Mahasiswa</h3>
-<p class="muted">Hanya Admin. Pilih mahasiswa yang lupa password. Sistem membuat password sementara acak dan menampilkannya sekali. Sampaikan secara privat.</p>
+<p class="muted">Hanya Admin. Pilih mahasiswa dan tentukan password sementara baru (minimal 12 karakter). Sampaikan secara privat.</p>
 <label for="resetStudent">Pilih mahasiswa</label><select id="resetStudent"><option value="">— Pilih mahasiswa —</option></select>
-<button type="button" id="resetStudentBtn">Buat Password Sementara Baru</button>
+<label for="adminNewPassword">Password sementara baru (minimal 12 karakter)</label><input id="adminNewPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Buat password unik untuk mahasiswa ini"/><label for="adminConfirmPassword">Ulangi password sementara</label><input id="adminConfirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Ketik ulang password yang sama"/><button type="button" id="resetStudentBtn">Reset Password Mahasiswa</button>
 <p id="resetStudentMsg" role="status" aria-live="polite"></p>
 <div id="temporaryPasswordBox" class="notice hidden"><strong>Password sementara (hanya ditampilkan saat ini):</strong><p><code id="temporaryPasswordValue" style="user-select:all;overflow-wrap:anywhere;font-size:16px"></code></p><button type="button" id="copyTemporaryPassword" class="secondary">Salin password</button><p class="muted">Simpan hanya untuk disampaikan kepada mahasiswa melalui saluran pribadi. Setelah keluar dari halaman ini, password tidak bisa dilihat kembali. Jika hilang, reset ulang.</p></div>
 </div>
@@ -196,13 +196,17 @@ $('resetStudentBtn').addEventListener('click', async()=>{
  const student=allProfiles.find(x=>x.id===id && x.role==='student');
  $('temporaryPasswordValue').textContent='';$('temporaryPasswordBox').classList.add('hidden');
  if(!student){msg.className='error';msg.textContent='Pilih mahasiswa dahulu.';return;}
+ const password=$('adminNewPassword').value;
+ if(password.length<12||password.length>128){msg.className='error';msg.textContent='Password harus 12–128 karakter.';return;}
+ if(password!==$('adminConfirmPassword').value){msg.className='error';msg.textContent='Konfirmasi password belum sama.';return;}
  if(!confirm('Reset password untuk '+student.full_name+' ('+student.nim+')? Password lama tidak akan berlaku lagi.'))return;
  btn.disabled=true;msg.className='muted';msg.textContent='Memproses reset password...';
  try{
-   const {data,error}=await db.functions.invoke('reset-student-password',{body:{student_id:id}});
+   const {data,error}=await db.functions.invoke('reset-student-password',{body:{student_id:id,new_password:password}});
    if(error){let detail=error.message||'Permintaan gagal';if(error.context?.json){try{const d=await error.context.json();detail=d.error||detail;}catch(_){}}throw new Error(detail);}
-   if(!data?.success||!data.temporary_password)throw new Error(data?.error||'Server tidak mengembalikan password sementara.');
-   $('temporaryPasswordValue').textContent=data.temporary_password;
+   if(!data?.success)throw new Error(data?.error||'Reset password belum berhasil.');
+   $('temporaryPasswordValue').textContent=password;
+   $('adminNewPassword').value='';$('adminConfirmPassword').value='';
    $('temporaryPasswordBox').classList.remove('hidden');
    msg.className='success';msg.textContent='Password sementara berhasil dibuat untuk '+student.full_name+'. Password lama sudah tidak berlaku.';
  }catch(e){msg.className='error';msg.textContent='Gagal reset: '+displayError(e)+' Pastikan Edge Function reset-student-password sudah di-deploy.';}
