@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Portal Monitoring RPL V8</title>
+<title>Portal Monitoring RPL V9</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#1e293b;font:15px system-ui,Arial}
 header{background:#16324f;color:#fff;padding:15px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
@@ -59,6 +59,14 @@ button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14
     <p id="createStudentMsg" role="status" aria-live="polite"></p>
   </form>
 </div>
+<div class="card">
+<h3>Reset Password Mahasiswa</h3>
+<p class="muted">Hanya Admin. Pilih mahasiswa yang lupa password. Sistem membuat password sementara acak dan menampilkannya sekali. Sampaikan secara privat.</p>
+<label for="resetStudent">Pilih mahasiswa</label><select id="resetStudent"><option value="">— Pilih mahasiswa —</option></select>
+<button type="button" id="resetStudentBtn">Buat Password Sementara Baru</button>
+<p id="resetStudentMsg" role="status" aria-live="polite"></p>
+<div id="temporaryPasswordBox" class="notice hidden"><strong>Password sementara (hanya ditampilkan saat ini):</strong><p><code id="temporaryPasswordValue" style="user-select:all;overflow-wrap:anywhere;font-size:16px"></code></p><button type="button" id="copyTemporaryPassword" class="secondary">Salin password</button><p class="muted">Simpan hanya untuk disampaikan kepada mahasiswa melalui saluran pribadi. Setelah keluar dari halaman ini, password tidak bisa dilihat kembali. Jika hilang, reset ulang.</p></div>
+</div>
 <div class="card"><h3>Input Hasil Rekognisi dan Nilai</h3>
 <p class="muted">Pilih mahasiswa, lalu atur status, nilai angka, dan semester untuk setiap mata kuliah. Klik Simpan pada baris yang diubah.</p>
 <div class="toolbar"><div><label for="chooseStudent">Pilih mahasiswa</label><select id="chooseStudent"><option value="">— Pilih mahasiswa —</option></select></div><div><span class="tag" id="chosenInfo"></span></div></div>
@@ -72,6 +80,19 @@ button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14
 <section id="studentPanel" class="hidden">
 <div class="grid"><div class="stat">Total mata kuliah<b id="myTotal">—</b></div><div class="stat">Direkognisi / ditempuh<b id="myDone">—</b></div><div class="stat">Belum diakui<b id="myPending">—</b></div></div>
 <div class="card"><div class="toolbar"><div><h3>Hasil studi saya</h3><p class="muted">Nilai direkognisi dan sudah ditempuh ditampilkan sebagai angka.</p></div><button id="printTranscript" type="button">Cetak / Simpan PDF Transkrip</button></div><div class="scroll"><table><thead><tr><th>Semester</th><th>Kode</th><th>Mata kuliah</th><th>SKS</th><th>Status</th><th>Nilai</th></tr></thead><tbody id="myCoursesBody"></tbody></table></div></div>
+</section>
+<section class="card" id="accountPanel">
+<h3>Keamanan Akun</h3>
+<p class="muted">Ganti password awal yang diberikan Admin. Gunakan password baru yang unik, minimal 12 karakter. Jangan berikan password kepada siapa pun.</p>
+<form id="changePasswordForm">
+<div class="grid"><div><label for="newPassword">Password baru</label><input id="newPassword" type="password" autocomplete="new-password" minlength="12" required></div><div><label for="confirmPassword">Ulangi password baru</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></div></div>
+<button type="submit" id="changePasswordBtn">Ganti Password</button><p id="passwordMsg" role="status" aria-live="polite"></p>
+</form>
+</section>
+<section class="card hidden" id="securityPanel">
+<h3>Uji Keamanan Akses — Akun Uji</h3>
+<p class="notice">Hanya untuk akun mahasiswa percobaan. Pengujian mengirim permintaan UPDATE dengan nilai yang sama; meskipun angkanya tidak berubah, permintaan dapat memicu audit atau trigger database. Jangan jalankan pada data mahasiswa asli.</p>
+<button id="testSecurityBtn" type="button">Uji Larangan Ubah Nilai</button><p id="securityMsg" role="status" aria-live="polite"></p>
 </section>
 </main>
 </div>
@@ -106,7 +127,7 @@ async function loadDashboard(user){
  $('welcome').textContent='Selamat datang, '+(profile.full_name||'Pengguna')+'!';
  activeProfile=profile;
  if(profile.role==='admin'){await loadAdmin();}
- else if(profile.role==='student'){await loadStudent(profile);}
+ else if(profile.role==='student'){await loadStudent(profile); if(/^uji/i.test(profile.nim||'')) $('securityPanel').classList.remove('hidden');}
  else showMessage('Peran akun tidak dikenali. Hubungi Admin.');
 }
 $('createStudentForm').addEventListener('submit', async (event) => {
@@ -166,9 +187,33 @@ async function loadAdmin(){
  const oldChoice=$('chooseStudent').value;
  $('chooseStudent').innerHTML='<option value="">— Pilih mahasiswa —</option>'+p.data.filter(x=>x.role==='student').map(x=>`<option value="${esc(x.id)}">${esc(x.full_name)} — ${esc(x.nim)} (${esc(x.cohort)})</option>`).join('');
  if(p.data.some(x=>x.id===oldChoice && x.role==='student'))$('chooseStudent').value=oldChoice;
+ $('resetStudent').innerHTML='<option value="">— Pilih mahasiswa —</option>'+p.data.filter(x=>x.role==='student').map(x=>`<option value="${esc(x.id)}">${esc(x.full_name)} — ${esc(x.nim)}</option>`).join('');
  $('studentsBody').innerHTML=p.data.map(x=>`<tr><td>${esc(x.full_name)}</td><td>${esc(x.nim||'—')}</td><td>${esc(x.cohort||'—')}</td><td><span class="pill">${esc(x.role)}</span></td></tr>`).join('')||'<tr><td colspan="4">Belum ada pengguna.</td></tr>';
  $('curriculumBody').innerHTML=c.data.map(x=>`<tr><td>${esc(x.curriculum_year)}</td><td>${esc(x.semester)}</td><td>${esc(x.course_code)}</td><td>${esc(x.course_name)}</td><td>${esc(x.credits)}</td></tr>`).join('')||'<tr><td colspan="5">Belum ada mata kuliah.</td></tr>';
 }
+$('resetStudentBtn').addEventListener('click', async()=>{
+ const id=$('resetStudent').value, msg=$('resetStudentMsg'), btn=$('resetStudentBtn');
+ const student=allProfiles.find(x=>x.id===id && x.role==='student');
+ $('temporaryPasswordValue').textContent='';$('temporaryPasswordBox').classList.add('hidden');
+ if(!student){msg.className='error';msg.textContent='Pilih mahasiswa dahulu.';return;}
+ if(!confirm('Reset password untuk '+student.full_name+' ('+student.nim+')? Password lama tidak akan berlaku lagi.'))return;
+ btn.disabled=true;msg.className='muted';msg.textContent='Memproses reset password...';
+ try{
+   const {data,error}=await db.functions.invoke('reset-student-password',{body:{student_id:id}});
+   if(error){let detail=error.message||'Permintaan gagal';if(error.context?.json){try{const d=await error.context.json();detail=d.error||detail;}catch(_){}}throw new Error(detail);}
+   if(!data?.success||!data.temporary_password)throw new Error(data?.error||'Server tidak mengembalikan password sementara.');
+   $('temporaryPasswordValue').textContent=data.temporary_password;
+   $('temporaryPasswordBox').classList.remove('hidden');
+   msg.className='success';msg.textContent='Password sementara berhasil dibuat untuk '+student.full_name+'. Password lama sudah tidak berlaku.';
+ }catch(e){msg.className='error';msg.textContent='Gagal reset: '+displayError(e)+' Pastikan Edge Function reset-student-password sudah di-deploy.';}
+ finally{btn.disabled=false;}
+});
+$('copyTemporaryPassword').addEventListener('click',async()=>{
+ const value=$('temporaryPasswordValue').textContent;
+ if(!value)return;
+ try{await navigator.clipboard.writeText(value);$('resetStudentMsg').textContent='Password sementara disalin. Kirim secara privat kepada mahasiswa.';}
+ catch(_){$('resetStudentMsg').textContent='Tidak bisa menyalin otomatis. Pilih teks password lalu salin manual.';}
+});
 $('chooseStudent').addEventListener('change',loadEditor);
 async function loadEditor(){
  const id=$('chooseStudent').value;
@@ -221,6 +266,36 @@ async function loadStudent(profile){
  $('myTotal').textContent=studentRows.length;$('myDone').textContent=done;$('myPending').textContent=studentRows.length-done;
  $('myCoursesBody').innerHTML=studentRows.map(x=>`<tr><td>${esc(x.semester_override||x.semester||'—')}</td><td>${esc(x.course_code)}</td><td>${esc(x.course_name)}</td><td>${esc(x.credits)}</td><td>${esc(x.status)}</td><td>${esc(isDone(x.status)?x.grade??'—':'—')}</td></tr>`).join('')||'<tr><td colspan="6">Kurikulum belum tersedia.</td></tr>';
 }
+$('changePasswordForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const a=$('newPassword').value,b=$('confirmPassword').value,out=$('passwordMsg'),btn=$('changePasswordBtn');
+ out.className='error';out.textContent='';
+ if(a.length<12){out.textContent='Password minimal 12 karakter.';return;}
+ if(a!==b){out.textContent='Konfirmasi password tidak sama.';return;}
+ btn.disabled=true;
+ try{
+   const {error}=await db.auth.updateUser({password:a});
+   if(error)throw error;
+   out.className='success';out.textContent='Password berhasil diganti. Gunakan password baru saat login berikutnya.';
+   $('changePasswordForm').reset();
+ }catch(error){out.textContent='Gagal mengganti password: '+displayError(error);}
+ finally{btn.disabled=false;}
+});
+$('testSecurityBtn').addEventListener('click',async()=>{
+ const out=$('securityMsg'),btn=$('testSecurityBtn');
+ if(!activeProfile||activeProfile.role!=='student'||!/^uji/i.test(activeProfile.nim||''))return;
+ if(!confirm('Jalankan pengujian UPDATE hanya untuk akun uji? Nilai yang dikirim sama seperti nilai sekarang, tetapi trigger/audit mungkin tetap berjalan.'))return;
+ btn.disabled=true;out.className='muted';out.textContent='Menguji kebijakan database...';
+ try{
+   const {data:rows,error:readError}=await db.from('student_courses').select('id,grade').eq('student_id',activeProfile.id).limit(1);
+   if(readError)throw readError;
+   if(!rows?.length){out.className='error';out.textContent='Belum ada data rekognisi pada akun uji. Isi satu mata kuliah lewat Admin dahulu.';return;}
+   const {data,error}=await db.from('student_courses').update({grade:rows[0].grade}).eq('id',rows[0].id).select('id');
+   if(data?.length){out.className='error';out.textContent='PERINGATAN: UPDATE mahasiswa berhasil. Jangan gunakan portal untuk data asli sebelum RLS diperbaiki.';}
+   else{out.className='success';out.textContent='LULUS: Akun mahasiswa tidak dapat memperbarui baris hasil rekognisi (0 baris diperbarui).'+(error?' Respons: '+displayError(error):'');}
+ }catch(error){out.className='error';out.textContent='Pengujian gagal dijalankan: '+displayError(error);}
+ finally{btn.disabled=false;}
+});
 $('printTranscript').addEventListener('click',()=>{
  if(!activeProfile||activeProfile.role!=='student')return;
  const completed=studentRows.filter(x=>isDone(x.status));
